@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/basicus/hla-course/model"
 	"github.com/basicus/hla-course/storage"
 	"github.com/gofiber/fiber/v2"
@@ -88,7 +89,8 @@ func (h *Handlers) UsersGet(c *fiber.Ctx) error {
 	//claims := user.Claims.(jwt.MapClaims)
 	//userId := int64(claims["user_id"].(float64))
 	//search := c.Params("search")
-	users, err := h.Storage.GetUsers(c.UserContext(), nil)
+	users, err := h.Storage.GetUsers(c.UserContext(), map[string]string{"name": "Ser%"},
+		map[string]string{"user_id": "ASC"}, 0, 1000)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Error on get user list", "data": err.Error()})
 	}
@@ -188,6 +190,60 @@ func (h *Handlers) GetFriends(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get friends error", "data": err})
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Friend del successfully", "data": friends})
+}
+
+func (h *Handlers) SearchProfile(c *fiber.Ctx) error {
+	//user := c.Locals("user").(*jwt.Token)
+	//claims := user.Claims.(jwt.MapClaims)
+	//userId := int64(claims["user_id"].(float64))
+	searchFirst := c.Query("first")
+	searchSecond := c.Query("second")
+	searchLimit := c.Query("limit")
+	searchOffset := c.Query("offset")
+	searchOrder := c.Query("order")
+
+	orderBy := make(map[string]string)
+
+	offset := 0
+	limit := 0
+
+	if searchLimit != "" {
+		atoi, err := strconv.Atoi(searchLimit)
+		if err != nil {
+			limit = 0
+		} else {
+			limit = atoi
+		}
+	}
+	if searchOrder != "" {
+		orderBy[searchOrder] = "ASC"
+	} else {
+		orderBy["user_id"] = "ASC"
+	}
+
+	if searchOffset != "" {
+		atoi, err := strconv.Atoi(searchOffset)
+		if err != nil {
+			offset = 0
+		} else {
+			offset = atoi
+		}
+	}
+
+	filter := make(map[string]string)
+	if searchSecond != "" {
+		filter["surname"] = fmt.Sprintf("%s%s", searchSecond, "%")
+	}
+	if searchFirst != "" {
+		filter["name"] = fmt.Sprintf("%s%s", searchFirst, "%")
+	}
+
+	users, err := h.Storage.GetUsers(c.UserContext(), filter,
+		orderBy, offset, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Error on get user list", "data": err.Error()})
+	}
+	return c.JSON(fiber.Map{"status": "success", "message": "Success user listing", "data": users})
 }
 
 func jwtToken(user model.User, secret string) (string, error) {

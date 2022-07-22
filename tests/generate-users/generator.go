@@ -15,7 +15,7 @@ type config struct {
 	Db     mysql.Config
 }
 
-const GenerateCount = 1000
+const GenerateCount = 1_000_000
 
 // Add users to database with random fake data. Add 4 friends to them
 
@@ -53,29 +53,29 @@ func main() {
 
 	// Add/remove friends
 	logger.Infof("Generating user friends")
-	for i := 0; i < len(userIds); i++ {
-		userId := userIds[i]
-		// Add three friends
-		friends := generateFriends(faker, userIds, 5)
-		for j := 0; j < len(friends); j++ {
-			_, err := dbc.AddFriend(context.Background(), userId, friends[j])
-			if err != nil {
-				logger.WithError(err).Error("cant add friend")
-			}
-		}
-		// Delete second Friend :(
-		_, err := dbc.DelFriend(context.Background(), userId, friends[2])
-		if err != nil {
-			logger.WithError(err).Error("cant delete friend")
-		}
+	//for i := 0; i < len(userIds); i++ {
+	//	userId := userIds[i]
+	//	// Add three friends
+	//	friends := generateFriends(faker, userIds, 5)
+	//	for j := 0; j < len(friends); j++ {
+	//		_, err := dbc.AddFriend(context.Background(), userId, friends[j])
+	//		if err != nil {
+	//			logger.WithError(err).Error("cant add friend")
+	//		}
+	//	}
+	//	// Delete second Friend :(
+	//	_, err := dbc.DelFriend(context.Background(), userId, friends[2])
+	//	if err != nil {
+	//		logger.WithError(err).Error("cant delete friend")
+	//	}
 
-		// Get user friends
-		//users, err := dbc.GetFriends(context.Background(), userId)
-		//if err != nil {
-		//	logger.WithError(err).Error("cant get users")
-		//}
-		//logger.Infof("User %d friends %+v", userId, users)
-	}
+	// Get user friends
+	//users, err := dbc.GetFriends(context.Background(), userId)
+	//if err != nil {
+	//	logger.WithError(err).Error("cant get users")
+	//}
+	//logger.Infof("User %d friends %+v", userId, users)
+	//}
 
 }
 

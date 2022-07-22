@@ -44,6 +44,7 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	app.Post("/api/v1/register", h.Register)
 	app.Post("/api/v1/login", h.Login)
 	app.Get("/api/v1/users", h.UsersGet)
+	app.Get("/api/v1/search", h.SearchProfile)
 	protected := app.Group("/api/v1/user", middleware.Protected(config.JwtSecret))
 	protected.Post("", h.UpdateProfile)
 	protected.Get("/friends", h.GetFriends)

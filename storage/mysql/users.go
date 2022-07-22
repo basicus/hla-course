@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+const (
+	SqlN     = " "
+	SqlAnd   = " AND "
+	SqlOr    = " OR "
+	SqlLike  = " LIKE ?"
+	SqlEq    = " = ?"
+	SqlWhere = " WHERE "
+	SqlOrder = " ORDER BY "
+	SqlComma = " , "
+)
+
+var fieldsOrder = []string{"user_id", "name", "surname", "age", "country", "city", "interests"}
+
 func (d *dbc) GetById(ctx context.Context, id int64) (model.User, error) {
 	var user model.User
 	err := d.connection.GetContext(ctx, &user, "SELECT * from users where user_id=?", id)
@@ -27,9 +40,58 @@ func (d *dbc) GetByLogin(ctx context.Context, login string) (model.User, error) 
 	return user, nil
 }
 
-func (d *dbc) GetUsers(ctx context.Context, filter map[string]string) ([]model.User, error) {
+func (d *dbc) GetUsers(ctx context.Context, filter map[string]string, order map[string]string, offset, limit int) ([]model.User, error) {
 	var users []model.User
-	err := d.connection.SelectContext(ctx, &users, "SELECT * from users")
+	var sb strings.Builder
+	var args []interface{}
+	c := 0
+	sb.WriteString("SELECT * from users ")
+	if len(filter) > 0 {
+		sb.WriteString(SqlWhere)
+	}
+	for _, field := range fieldsOrder {
+		v, ok := filter[field]
+		if ok {
+			if c == 0 {
+				sb.WriteString(SqlN)
+			} else {
+				sb.WriteString(SqlAnd)
+			}
+			sb.WriteString(field)
+			sb.WriteString(SqlLike)
+			args = append(args, v)
+			c++
+		}
+	}
+	c = 0
+	if len(order) > 0 {
+		sb.WriteString(SqlOrder)
+	}
+
+	for _, field := range fieldsOrder {
+		v, ok := order[field]
+		if ok {
+			if c == 0 {
+				sb.WriteString(SqlN)
+			} else {
+				sb.WriteString(SqlComma)
+			}
+			sb.WriteString(field)
+			sb.WriteString(SqlN)
+			sb.WriteString(v)
+			c++
+		}
+	}
+
+	if offset > 0 {
+		sb.WriteString(" OFFSET ? ")
+		args = append(args, offset)
+	}
+	if limit > 0 {
+		sb.WriteString(" LIMIT ? ")
+		args = append(args, limit)
+	}
+	err := d.connection.SelectContext(ctx, &users, sb.String(), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +122,7 @@ func (d *dbc) Create(ctx context.Context, user model.User) (model.User, error) {
 	sql := "insert into users (login, email, phone, password, name, surname, age, sex, country, city, interests) " +
 		"values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
 	stmt, err := d.connection.Prepare(sql)
+	defer stmt.Close()
 	if err != nil {
 		return model.User{}, err
 	}
@@ -141,6 +204,7 @@ func (d *dbc) AddFriend(ctx context.Context, user int64, friend int64) (bool, er
 	sql := "insert into user_friend (user_id, friend_id) " +
 		"values (?, ?);"
 	stmt, err := d.connection.Prepare(sql)
+	defer stmt.Close()
 	if err != nil {
 		return false, err
 	} // TODO Check for duplicates
@@ -164,6 +228,7 @@ func (d *dbc) DelFriend(ctx context.Context, user int64, friend int64) (bool, er
 	sql := "delete from user_friend where user_id = ? and friend_id = ? ;"
 
 	stmt, err := d.connection.Prepare(sql)
+	defer stmt.Close()
 	if err != nil {
 		return false, err
 	}

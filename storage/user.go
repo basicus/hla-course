@@ -17,7 +17,7 @@ type UserService interface {
 	// GetByLogin Поиск пользователя по логину
 	GetByLogin(ctx context.Context, login string) (model.User, error)
 	// GetUsers Поиск пользователей с фильтрацией по полям
-	GetUsers(ctx context.Context, filter map[string]string) ([]model.User, error)
+	GetUsers(ctx context.Context, filter map[string]string, order map[string]string, offset, limit int) ([]model.User, error)
 	// ValidateUser Проверка пароля пользователя
 	ValidateUser(ctx context.Context, login string, password string) (bool, error)
 	// CheckPasswordHash Сравнение хэша с паролем
