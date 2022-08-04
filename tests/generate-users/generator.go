@@ -15,7 +15,7 @@ type config struct {
 	Db     mysql.Config
 }
 
-const GenerateCount = 1_000_000
+const GenerateCount = 5_000
 
 // Add users to database with random fake data. Add 4 friends to them
 

@@ -12,8 +12,10 @@ import (
 )
 
 type dbc struct {
-	logger     *logrus.Logger
-	connection *sqlx.DB
+	logger       *logrus.Logger
+	connection   *sqlx.DB
+	connectionRo *sqlx.DB
+	roEnable     bool
 }
 
 func New(cfg Config, logger *logrus.Logger) (storage.UserService, error) {
@@ -44,8 +46,25 @@ func New(cfg Config, logger *logrus.Logger) (storage.UserService, error) {
 		return nil, err
 	}
 
+	var roEnable bool
+	var connRo *sqlx.DB
+	if cfg.DSNro != "" && !cfg.RoDisable {
+		roEnable = true
+		connRo, err = sqlx.Open("mysql", cfg.DSNro)
+		if err != nil {
+			return nil, err
+		}
+		err = connRo.Ping()
+		connRo.SetMaxOpenConns(cfg.MaxOpenConnections)
+		if err != nil {
+			return nil, err
+		}
+	}
+	logger.WithField("role", "storage").Logger.Infof("Using readonly connection pooling: %t", roEnable)
 	return &dbc{
-		logger:     logger.WithField("role", "storage").Logger,
-		connection: conn,
+		logger:       logger.WithField("role", "storage").Logger,
+		connection:   conn,
+		connectionRo: connRo,
+		roEnable:     roEnable,
 	}, nil
 }

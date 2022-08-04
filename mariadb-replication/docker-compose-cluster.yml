@@ -1,0 +1,66 @@
+version: '3.5'
+
+services:
+
+  mariadb1:
+    image: mariadb:10.8.3
+    container_name: mariadb1
+    hostname: mariadb1
+    ports:
+      - '1441:3306'
+    restart: unless-stopped
+    command: [ "mysqld" ]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb1/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+  mariadb2:
+    image: mariadb:10.8.3
+    container_name: mariadb2
+    hostname: mariadb2
+    ports:
+      - '1442:3306'
+    restart: unless-stopped
+    command: [ "mysqld" ]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb2/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+  mariadb3:
+    image: mariadb:10.8.3
+    container_name: mariadb3
+    hostname: mariadb3
+    ports:
+      - '1443:3306'
+    restart: unless-stopped
+    command: [ "mysqld"]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb3/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20

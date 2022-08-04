@@ -91,7 +91,12 @@ func (d *dbc) GetUsers(ctx context.Context, filter map[string]string, order map[
 		sb.WriteString(" LIMIT ? ")
 		args = append(args, limit)
 	}
-	err := d.connection.SelectContext(ctx, &users, sb.String(), args...)
+	// If RO connection is enabled use it
+	connection := d.connection
+	if d.roEnable {
+		connection = d.connectionRo
+	}
+	err := connection.SelectContext(ctx, &users, sb.String(), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +182,12 @@ func (d *dbc) Update(ctx context.Context, user model.User, fieldsForUpdating map
 func (d *dbc) GetFriends(ctx context.Context, id int64) ([]model.User, error) {
 	var friends []model.Friend
 	var friendsUsers []model.User
-	err := d.connection.SelectContext(ctx, &friends, "SELECT * from user_friend where user_id=?", id)
+	// If RO connection is enabled use it
+	connection := d.connection
+	if d.roEnable {
+		connection = d.connectionRo
+	}
+	err := connection.SelectContext(ctx, &friends, "SELECT * from user_friend where user_id=?", id)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +201,7 @@ func (d *dbc) GetFriends(ctx context.Context, id int64) ([]model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = d.connection.SelectContext(ctx, &friendsUsers, d.connection.Rebind(queryFriends), args...)
+	err = connection.SelectContext(ctx, &friendsUsers, d.connection.Rebind(queryFriends), args...)
 	if err != nil {
 		return nil, err
 	}
