@@ -3,6 +3,7 @@ package mysql
 import (
 	"github.com/basicus/hla-course/migrations"
 	"github.com/basicus/hla-course/storage"
+	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mysql"
@@ -15,6 +16,7 @@ type dbc struct {
 	logger       *logrus.Logger
 	connection   *sqlx.DB
 	connectionRo *sqlx.DB
+	redis        *redis.Client
 	roEnable     bool
 }
 
@@ -36,7 +38,7 @@ func New(cfg Config, logger *logrus.Logger) (storage.UserService, error) {
 		}
 	}
 
-	conn, err := sqlx.Open("mysql", cfg.DSN)
+	conn, err := sqlx.Open("mysql", cfg.DSN+"?parseTime=true")
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +52,7 @@ func New(cfg Config, logger *logrus.Logger) (storage.UserService, error) {
 	var connRo *sqlx.DB
 	if cfg.DSNro != "" && !cfg.RoDisable {
 		roEnable = true
-		connRo, err = sqlx.Open("mysql", cfg.DSNro)
+		connRo, err = sqlx.Open("mysql", cfg.DSNro+"?parseTime=true")
 		if err != nil {
 			return nil, err
 		}

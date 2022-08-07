@@ -2,10 +2,12 @@ package mysql
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/basicus/hla-course/model"
 	"github.com/basicus/hla-course/storage"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
+	"strconv"
 	"strings"
 )
 
@@ -180,14 +182,37 @@ func (d *dbc) Update(ctx context.Context, user model.User, fieldsForUpdating map
 }
 
 func (d *dbc) GetFriends(ctx context.Context, id int64) ([]model.User, error) {
-	var friends []model.Friend
 	var friendsUsers []model.User
 	// If RO connection is enabled use it
 	connection := d.connection
 	if d.roEnable {
 		connection = d.connectionRo
 	}
-	err := connection.SelectContext(ctx, &friends, "SELECT * from user_friend where user_id=?", id)
+	// Get user friends
+	friendsId, err := d.getFriendIds(ctx, connection, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if friendsId != nil && len(friendsId) > 0 {
+		queryFriends, args, err := sqlx.In("SELECT * FROM users WHERE users.user_id IN (?)", friendsId)
+		if err != nil {
+			return nil, err
+		}
+		err = connection.SelectContext(ctx, &friendsUsers, d.connection.Rebind(queryFriends), args...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return friendsUsers, nil
+
+}
+
+// Получение id друзей
+func (d *dbc) getFriendIds(ctx context.Context, connection *sqlx.DB, userId int64) ([]int64, error) {
+	var friends []model.Friend
+	err := connection.SelectContext(ctx, &friends, "SELECT * from user_friend where user_id=?", userId)
 	if err != nil {
 		return nil, err
 	}
@@ -197,17 +222,26 @@ func (d *dbc) GetFriends(ctx context.Context, id int64) ([]model.User, error) {
 	for _, friend := range friends {
 		friendsId = append(friendsId, friend.FriendId)
 	}
-	queryFriends, args, err := sqlx.In("SELECT * FROM users WHERE users.user_id IN (?)", friendsId)
-	if err != nil {
-		return nil, err
+	return friendsId, nil
+}
+
+func (d *dbc) GetUserFollowers(ctx context.Context, id int64) ([]int64, error) {
+	var followers []model.Friend
+	connection := d.connection
+	if d.roEnable {
+		connection = d.connectionRo
 	}
-	err = connection.SelectContext(ctx, &friendsUsers, d.connection.Rebind(queryFriends), args...)
+	err := connection.SelectContext(ctx, &followers, "SELECT * from user_friend where friend_id=?", id)
 	if err != nil {
 		return nil, err
 	}
 
-	return friendsUsers, nil
+	var friendsId []int64
 
+	for _, friend := range followers {
+		friendsId = append(friendsId, friend.UserId)
+	}
+	return friendsId, nil
 }
 
 func (d *dbc) AddFriend(ctx context.Context, user int64, friend int64) (bool, error) {
@@ -255,6 +289,113 @@ func (d *dbc) DelFriend(ctx context.Context, user int64, friend int64) (bool, er
 		return true, err
 	}
 	return false, err
+}
+
+// PublishPost Опубликовать запись
+func (d *dbc) PublishPost(ctx context.Context, user int64, title, message string) (model.Post, error) {
+	sql := "insert into posts (user_id, title, message) " +
+		"values (?, ?, ?);"
+	stmt, err := d.connection.Prepare(sql)
+	defer stmt.Close()
+	if err != nil {
+		return model.Post{}, err
+	}
+	result, err := stmt.ExecContext(ctx, user, title, message)
+	if err != nil {
+		return model.Post{}, err
+	}
+	postId, err := result.LastInsertId()
+	if err != nil {
+		return model.Post{}, err
+	}
+	post, err := d.GetPostById(ctx, postId)
+	if err != nil {
+		return model.Post{}, err
+	}
+
+	return post, nil
+}
+
+func (d *dbc) GetPostById(ctx context.Context, postId int64) (model.Post, error) {
+	var post model.Post
+	err := d.connection.GetContext(ctx, &post, "SELECT * from posts where id=?", postId)
+	if err != nil {
+		return model.Post{}, err
+	}
+	// TODO Cache It!!!
+	return post, nil
+}
+
+// GetPostsByUserId Получение списка постов по id пользователя
+func (d *dbc) GetPostsByUserId(ctx context.Context, userId int64, limit, offset int64) ([]model.Post, error) {
+	var posts []model.Post
+	var sb strings.Builder
+	var args []interface{}
+
+	sb.WriteString("SELECT * from posts WHERE user_id=? ")
+	args = append(args, userId)
+
+	if offset > 0 {
+		sb.WriteString(" OFFSET ? ")
+		args = append(args, offset)
+	}
+	if limit > 0 {
+		sb.WriteString(" LIMIT ? ")
+		args = append(args, limit)
+	}
+	// If RO connection is enabled use it
+	connection := d.connection
+	if d.roEnable {
+		connection = d.connectionRo
+	}
+	err := connection.SelectContext(ctx, &posts, sb.String(), args...)
+	if err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
+
+func (d *dbc) GetFriendsPosts(ctx context.Context, id int64, limit int64) ([]model.Post, error) {
+	var posts []model.Post
+
+	if d.redis != nil {
+		result, err := d.redis.Get(ctx, "user_feed"+strconv.FormatInt(id, 10)).Result()
+		if err == nil {
+			err = json.Unmarshal([]byte(result), &posts)
+			if err == nil {
+				return posts, nil
+			}
+		}
+	}
+	// No cache connection or no feed in cache.
+
+	connection := d.connection
+	if d.roEnable {
+		connection = d.connectionRo
+	}
+	friendsIds, err := d.getFriendIds(ctx, connection, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if friendsIds != nil && len(friendsIds) > 0 {
+		queryFriends, args, err := sqlx.In("SELECT * FROM posts WHERE user_id IN (?) order by created_at desc limit ?", friendsIds, limit)
+		if err != nil {
+			return nil, err
+		}
+		err = connection.SelectContext(ctx, &posts, d.connection.Rebind(queryFriends), args...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if d.redis != nil {
+		friendPostsJson, err := json.Marshal(posts)
+		if err == nil {
+			_, err = d.redis.Set(ctx, "user_feed"+strconv.FormatInt(id, 10), friendPostsJson, 0).Result()
+		}
+	}
+
+	return posts, nil
 }
 
 func hashPassword(password string) (string, error) {

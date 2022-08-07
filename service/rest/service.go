@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/basicus/hla-course/log"
 	"github.com/basicus/hla-course/service/monitoring"
+	"github.com/basicus/hla-course/service/queue"
 	"github.com/basicus/hla-course/service/rest/handlers"
 	"github.com/basicus/hla-course/service/rest/middleware"
 	"github.com/basicus/hla-course/storage"
@@ -22,7 +23,7 @@ type Service struct {
 	storage *storage.UserService
 }
 
-func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.UserService) (*Service, error) {
+func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.UserService, queue *queue.Service) (*Service, error) {
 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -37,7 +38,8 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	h := handlers.Handlers{
 		Logger:  log,
 		Storage: *storage,
-		Config:  handlers.Config{JwtSecret: config.JwtSecret},
+		Config:  handlers.Config{JwtSecret: config.JwtSecret, PostsLimit: config.PostsLimit},
+		Queue:   queue,
 	}
 
 	app.Use(middleware.NewLogger(log))
@@ -45,13 +47,16 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	app.Post("/api/v1/login", h.Login)
 	app.Get("/api/v1/users", h.UsersGet)
 	app.Get("/api/v1/search", h.SearchProfile)
+	app.Get("/api/v1/post/:id", h.GetPostById)
 	protected := app.Group("/api/v1/user", middleware.Protected(config.JwtSecret))
+	protected.Get("/feed", h.PersonalFeed)
 	protected.Post("", h.UpdateProfile)
 	protected.Get("/friends", h.GetFriends)
 	protected.Get("/:id", h.UserInfo)
 	protected.Get("", h.UserInfo)
 	protected.Post("/:id/friend", h.AddFriend)
 	protected.Delete("/:id/friend", h.DeleteFriend)
+	protected.Post("/publish", h.PublishPost)
 
 	//app.Post("/api/v1/logout", handlers.Logout)
 	//app.Post("/api/v1/password_recover", handlers.PasswordRecover)

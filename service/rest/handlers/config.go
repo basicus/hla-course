@@ -1,5 +1,6 @@
 package handlers
 
 type Config struct {
-	JwtSecret string
+	JwtSecret  string
+	PostsLimit int64
 }

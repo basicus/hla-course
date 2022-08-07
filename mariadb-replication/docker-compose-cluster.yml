@@ -64,3 +64,10 @@ services:
       test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
       interval: 2s
       retries: 20
+
+  redis:
+      image: redis:6.2-alpine
+      restart: unless-stopped
+      ports:
+        - '6379:6379'
+      command: redis-server --save 20 1 --loglevel warning --requirepass pass

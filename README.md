@@ -40,6 +40,14 @@ make run
 | DB_RO_MAX_OPEN_CONNECTIONS | 5                                     | Количество соединий для ro запросов                  |
 | DB_RO_DISABLE              | false                                 | Принудительное отключение read only подключения к БД |
 | PROMETHEUS_LISTEN          | localhost:8082                        | Порт мониторинга /metrics                            |
+| FRIENDS_POSTS_LIMIT        | 1000                                  | Количество постов в ленте новостей                   |
+| REDIS_ADDRESS              | localhost                             | Адрес сервера Redis для кэширования и очередей       |
+| REDIS_USERNAME             | -                                     | Имя пользователя                                     |
+| REDIS_PASSWORD             | -                                     | Пароль пользователя                                  |
+| REDIS_DATABASE             | 0                                     | Номер базы данных, число                             |
+| REDIS_POOL_SIZE            | 5                                     | Пул подключений к Redis                              |
+| QUEUE_CLEANUP_PERIOD       | 300s                                  | Периодичность очистки зависших задач                 |
+| CONSUMERS_PER_QUEUE        | 5                                     | Количество консьюмеров на очередь                    |
 
 
 ### Дополнительный сервис

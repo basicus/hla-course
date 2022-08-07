@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"github.com/basicus/hla-course/model"
+	"github.com/basicus/hla-course/service/queue"
 	"github.com/basicus/hla-course/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
@@ -15,6 +16,7 @@ type Handlers struct {
 	Logger  *logrus.Logger
 	Storage storage.UserService
 	Config  Config
+	Queue   *queue.Service
 }
 
 // Register Регистрация пользователя
@@ -158,6 +160,9 @@ func (h *Handlers) AddFriend(c *fiber.Ctx) error {
 	if err != nil || !status {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Friend add error", "data": err})
 	}
+	// Обновляем ленту постов после добавления друга (добавляем в очередь)
+	_ = h.Queue.UpdateFeed(c.UserContext(), userId)
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Friend add successfully", "data": nil})
 }
 
@@ -177,6 +182,10 @@ func (h *Handlers) DeleteFriend(c *fiber.Ctx) error {
 	if err != nil || !status {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Friend del error", "data": err})
 	}
+
+	// Обновляем ленту постов после удаления друга (добавляем в очередь)
+	_ = h.Queue.UpdateFeed(c.UserContext(), userId)
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Friend del successfully", "data": nil})
 }
 
@@ -246,6 +255,59 @@ func (h *Handlers) SearchProfile(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "success", "message": "Success user listing", "data": users})
 }
 
+// PublishPost Публикация новой записи
+func (h *Handlers) PublishPost(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userId := int64(claims["user_id"].(float64))
+	//userName := claims["username"].(string)
+
+	post := new(model.PostPojo)
+	if err := c.BodyParser(post); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Review your input", "data": err})
+
+	}
+	post.UserId = userId
+
+	savedPost, err := h.Storage.PublishPost(c.UserContext(), post.UserId, post.Title, post.Message)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Save post problem", "data": err})
+	}
+
+	// Добавляем в очередь обновление лент пользователей после добавления нового поста
+	_ = h.Queue.NewPost(c.UserContext(), savedPost)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Publish ok", "data": savedPost})
+}
+
+func (h *Handlers) PersonalFeed(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userId := int64(claims["user_id"].(float64))
+
+	friendsPosts, err := h.Storage.GetFriendsPosts(c.UserContext(), userId, h.Config.PostsLimit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get timeline problem", "data": err})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "get feed ok", "data": friendsPosts})
+}
+
+// GetPostById Получение поста по его Id
+func (h *Handlers) GetPostById(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var postId int64
+	var err error
+
+	postId, err = strconv.ParseInt(id, 10, 64)
+
+	post, err := h.Storage.GetPostById(c.UserContext(), postId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get post problem", "data": err})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "get ok", "data": post})
+}
 func jwtToken(user model.User, secret string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 
