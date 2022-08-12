@@ -19,3 +19,10 @@ type PostPojo struct {
 	Title   string `json:"title" db:"title" fake:"{sentence}"`
 	Message string `json:"message" db:"message" fake:"{sentence}"`
 }
+
+// PostDTO Публикация (для отображения на клиенте)
+type PostDTO struct {
+	UserFrom string `json:"user_from"`
+	Title    string `json:"title"`
+	Message  string `json:"message"`
+}

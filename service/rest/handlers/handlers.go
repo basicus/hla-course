@@ -308,6 +308,152 @@ func (h *Handlers) GetPostById(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "get ok", "data": post})
 }
+
+func (h *Handlers) GetUserChats(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userId := int64(claims["user_id"].(float64))
+
+	chats, err := h.Storage.UserGetChats(c.UserContext(), userId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get user chats problem", "data": err})
+	}
+	if chats == nil {
+		chats = []model.Chat{}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "get user chats ok", "data": chats})
+}
+
+func (h *Handlers) ChatCreate(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userId := int64(claims["user_id"].(float64))
+
+	chatCreat := new(model.ChatCreateDTO)
+	if err := c.BodyParser(chatCreat); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Review your input", "data": err})
+
+	}
+	chatCreat.Users = append(chatCreat.Users, userId)
+
+	chat, err := h.Storage.ChatCreate(c.UserContext(), chatCreat.Title, chatCreat.Users...)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat create problem", "data": err})
+	}
+
+	// TODO Отправка в очередь уведомления о новом событии
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Chat create ok", "data": chat})
+}
+
+func (h *Handlers) ChatPostMessage(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userId := int64(claims["user_id"].(float64))
+	id := c.Params("id")
+
+	var err error
+
+	chatId, err := strconv.ParseInt(id, 10, 64)
+
+	message := new(model.MessageSendDTO)
+	if err := c.BodyParser(message); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Review your input", "data": err})
+	}
+
+	// If chat exists
+	_, err = h.Storage.GetChat(c.UserContext(), chatId)
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat not found", "data": err})
+	}
+
+	// Try to save message to chat
+	messageSaved, err := h.Storage.MessageSave(c.UserContext(), chatId, userId, time.Now(), message.Message)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Create chat problem", "data": err})
+	}
+
+	// Get username
+	userName, err := h.Storage.GetUserName(c.UserContext(), messageSaved.UserFrom)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get username problem", "data": err})
+	}
+
+	// TODO Отправка в очередь уведомления о новом событии
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Message send ok", "data": model.MessageDTO{
+		Id:       messageSaved.Id,
+		UserFrom: userName,
+		Date:     messageSaved.SendAt,
+		Message:  messageSaved.Message,
+	}})
+}
+
+func (h *Handlers) GetChatMessages(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	userId := int64(claims["user_id"].(float64))
+	id := c.Params("id")
+
+	var err error
+
+	chatId, err := strconv.ParseInt(id, 10, 64)
+
+	// If chat exists
+	chat, err := h.Storage.GetChat(c.UserContext(), chatId)
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat not found", "data": err})
+	}
+
+	// Check if user is participant
+
+	var userIsParticipant bool
+	paricipants, err := h.Storage.ChatGetParticipants(c.UserContext(), chatId)
+	for _, v := range paricipants {
+		if v == userId {
+			userIsParticipant = true
+		}
+	}
+
+	if !userIsParticipant {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "User is not participant of this chat", "data": "not participant"})
+	}
+
+	// Try get messages for chat
+	messageList, err := h.Storage.ChatMessages(c.UserContext(), chatId, 0, 0)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Create chat problem", "data": err})
+	}
+
+	m := model.MessageList{
+		Chat: chat,
+		List: make([]model.MessageDTO, len(messageList)),
+	}
+
+	// Get usernames and create dto for user
+	users := make(map[int64]string, 10)
+	for i := 0; i < len(messageList); i++ {
+		_, ok := users[messageList[i].UserFrom]
+		if !ok {
+			// Get username
+			userName, err := h.Storage.GetUserName(c.UserContext(), messageList[i].UserFrom)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get username problem", "data": err})
+			}
+			users[messageList[i].UserFrom] = userName
+		}
+		m.List[i] = model.MessageDTO{
+			Id:       messageList[i].Id,
+			UserFrom: users[messageList[i].UserFrom],
+			Date:     messageList[i].SendAt,
+			Message:  messageList[i].Message,
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Message send ok", "data": m})
+}
+
 func jwtToken(user model.User, secret string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/basicus/hla-course/model"
+	"time"
 )
 
 var (
@@ -42,4 +43,28 @@ type UserService interface {
 	GetPostsByUserId(ctx context.Context, userId int64, limit, offset int64) ([]model.Post, error)
 	// GetPostById Получить post по его Id
 	GetPostById(ctx context.Context, postId int64) (model.Post, error)
+	// UserGetChats Получить список чатов
+	UserGetChats(ctx context.Context, userId int64) ([]model.Chat, error)
+	// ChatCreate Создать новый чат
+	ChatCreate(ctx context.Context, title string, participants ...int64) (model.Chat, error)
+	// ChatDelete Удалить чат
+	ChatDelete(ctx context.Context, chatId int64) (model.Chat, error)
+	// ChatGetParticipants Получить список участников чата
+	ChatGetParticipants(ctx context.Context, chatId int64) ([]int64, error)
+	// ChatAddParticipants Добавить участников чата
+	ChatAddParticipants(ctx context.Context, chatId int64, userIds []int64) error
+	// ChatLeave Покинуть чат
+	ChatLeave(ctx context.Context, chatId, userId int64) error
+	// MessageSave Отправить сообщение в чат
+	MessageSave(ctx context.Context, chatId, userFromId int64, date time.Time, message string) (model.Message, error)
+	// ChatMessages Получение списка сообщений из чата
+	ChatMessages(ctx context.Context, chatId int64, limit, offset int64) ([]model.Message, error)
+	// MessageGet Получить сообщение по id
+	MessageGet(ctx context.Context, id int64) (model.Message, error)
+	// GetUserName Получить имя пользователя
+	GetUserName(ctx context.Context, userId int64) (string, error)
+	// GetLogin Получить логин пользователя
+	GetLogin(ctx context.Context, userId int64) (string, error)
+	// GetChat Получить информацию о чате по id
+	GetChat(ctx context.Context, chatId int64) (model.Chat, error)
 }

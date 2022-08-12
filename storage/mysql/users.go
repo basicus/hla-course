@@ -181,6 +181,26 @@ func (d *dbc) Update(ctx context.Context, user model.User, fieldsForUpdating map
 	return userDb, nil
 }
 
+// GetUserName Получить имя пользователя
+func (d *dbc) GetUserName(ctx context.Context, userId int64) (string, error) {
+	var user model.User
+	err := d.connection.GetContext(ctx, &user, "SELECT * from users where user_id=?", userId)
+	if err != nil {
+		return "", err
+	}
+	return user.Name + " " + user.Surname, nil
+}
+
+// GetLogin Получить логин пользователя
+func (d *dbc) GetLogin(ctx context.Context, userId int64) (string, error) {
+	var user model.User
+	err := d.connection.GetContext(ctx, &user, "SELECT * from users where user_id=?", userId)
+	if err != nil {
+		return "", err
+	}
+	return user.Login, nil
+}
+
 func (d *dbc) GetFriends(ctx context.Context, id int64) ([]model.User, error) {
 	var friendsUsers []model.User
 	// If RO connection is enabled use it

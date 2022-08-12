@@ -50,6 +50,7 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	app.Get("/api/v1/post/:id", h.GetPostById)
 	protected := app.Group("/api/v1/user", middleware.Protected(config.JwtSecret))
 	protected.Get("/feed", h.PersonalFeed)
+	protected.Get("/chats", h.GetUserChats) // Получение списка чатов пользователя
 	protected.Post("", h.UpdateProfile)
 	protected.Get("/friends", h.GetFriends)
 	protected.Get("/:id", h.UserInfo)
@@ -57,6 +58,12 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	protected.Post("/:id/friend", h.AddFriend)
 	protected.Delete("/:id/friend", h.DeleteFriend)
 	protected.Post("/publish", h.PublishPost)
+
+	// Функционал чатов (диалогов)
+
+	protected.Get("/chat/:id", h.GetChatMessages)  // Получение списка сообщений из чата
+	protected.Post("/chat", h.ChatCreate)          // Создать чат с пользователем
+	protected.Post("/chat/:id", h.ChatPostMessage) // Отправить сообщение в чат
 
 	//app.Post("/api/v1/logout", handlers.Logout)
 	//app.Post("/api/v1/password_recover", handlers.PasswordRecover)
