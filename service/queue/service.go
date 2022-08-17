@@ -36,10 +36,11 @@ type Service struct {
 	err         chan error
 	config      Config
 	counters    map[string]*qStatCounters
+	publish     func(ctx context.Context, userId int64, shardId string, event model.Event) error
 }
 
 // New Инициализация сервиса
-func New(config Config, storage *storage.UserService, logger *logrus.Logger) (*Service, error) {
+func New(config Config, storage *storage.UserService, logger *logrus.Logger, publish func(ctx context.Context, userId int64, shardId string, event model.Event) error) (*Service, error) {
 	e := make(chan error, 10)
 	redisClient := redis.NewClient(
 		&redis.Options{
@@ -64,6 +65,7 @@ func New(config Config, storage *storage.UserService, logger *logrus.Logger) (*S
 		storage:     storage,
 		queues:      make(map[string]*TaskQueue),
 		config:      config,
+		publish:     publish,
 	}, nil
 }
 
@@ -130,7 +132,7 @@ func (s *Service) StartConsumers(_ context.Context) error {
 	for i := 0; i < s.config.NumberConsumersForQueue; i++ {
 		name := fmt.Sprintf("consumer-%s", queueNamePosts)
 		s.log.Infof("adding consumer %d name %s", i, name)
-		if _, err := taskPostsQueue.AddConsumer(name, NewConsumerPost(fmt.Sprintf("%s-%d", name, i), s.log, s.storage, taskFeedsQueue)); err != nil {
+		if _, err := taskPostsQueue.AddConsumer(name, NewConsumerPost(fmt.Sprintf("%s-%d", name, i), s.log, s.storage, taskFeedsQueue, s.publish)); err != nil {
 			return err
 		}
 	}

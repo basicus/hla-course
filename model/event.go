@@ -17,8 +17,8 @@ type Event interface {
 
 // EventPost Событие Публикация
 type EventPost struct {
-	EventType string `json:"event"`
-	PostDTO   `json:"data"`
+	EventType string  `json:"event"`
+	Data      PostDTO `json:"data"`
 }
 
 func (e *EventPost) String() string {

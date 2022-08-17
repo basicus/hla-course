@@ -134,6 +134,7 @@ func (d *dbc) Create(ctx context.Context, user model.User) (model.User, error) {
 		return model.User{}, err
 	}
 	user.PasswordHash, _ = hashPassword(user.Password)
+	user.ShardId = "00000" // TODO add sharding users algorithm
 	result, err := stmt.ExecContext(ctx, user.Login, user.Email, user.Phone, user.PasswordHash, user.Name, user.Surname,
 		user.Age, user.Sex, user.Country, user.City, user.Interests)
 	if err != nil {

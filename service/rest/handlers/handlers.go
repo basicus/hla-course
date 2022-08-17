@@ -9,6 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/sirupsen/logrus"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -41,6 +42,8 @@ func (h *Handlers) Register(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "Couldn't create user", "data": err})
 	}
+
+	newUser.Settings = model.UserSettings{WSConnect: strings.Replace(h.Config.WsUserString, "{RK}", newUser.ShardId, 1)}
 
 	token, err := jwtToken(newUser, h.Config.JwtSecret)
 	if err != nil {
@@ -82,7 +85,7 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	return c.JSON(fiber.Map{"status": "success", "message": "Success login", "data": nil, "token": token})
+	return c.JSON(fiber.Map{"status": "success", "message": "Success login", "data": model.UserSettings{WSConnect: strings.Replace(h.Config.WsUserString, "{RK}", user.ShardId, 1)}, "token": token})
 
 }
 

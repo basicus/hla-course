@@ -26,3 +26,9 @@ type PostDTO struct {
 	Title    string `json:"title"`
 	Message  string `json:"message"`
 }
+
+// WsEvent Используется для маршрутизации и отправки пользователю в websocket
+type WsEvent struct {
+	UserId  int64  `json:"user_id"`
+	Message string `json:"message,omitempty"`
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/adjust/rmq/v4"
 	"github.com/basicus/hla-course/log"
+	"github.com/basicus/hla-course/model"
 	"github.com/basicus/hla-course/storage"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -17,10 +18,11 @@ type ConsumerPost struct {
 	before  time.Time
 	logger  *logrus.Logger
 	storage storage.UserService
+	publish func(ctx context.Context, userId int64, shardId string, event model.Event) error
 	queue   *TaskQueue
 }
 
-func NewConsumerPost(tag string, logger *logrus.Logger, service *storage.UserService, queue *TaskQueue) *ConsumerPost {
+func NewConsumerPost(tag string, logger *logrus.Logger, service *storage.UserService, queue *TaskQueue, publish func(ctx context.Context, userId int64, shardId string, event model.Event) error) *ConsumerPost {
 	return &ConsumerPost{
 		name:    fmt.Sprintf("consumer-%s", tag),
 		count:   0,
@@ -28,6 +30,7 @@ func NewConsumerPost(tag string, logger *logrus.Logger, service *storage.UserSer
 		logger:  logger,
 		storage: *service,
 		queue:   queue,
+		publish: publish,
 	}
 }
 
@@ -59,6 +62,12 @@ func (c *ConsumerPost) Consume(delivery rmq.Delivery) {
 		_ = delivery.Reject()
 	}
 
+	var userName string
+	userName, err = c.storage.GetUserName(ctx, task.Post.UserId)
+	if err != nil {
+		userName = ""
+	}
+
 	// Ставим на обновление кэши пользователей
 	for _, followerId := range followers {
 		// Queue follower id for update feed
@@ -67,6 +76,22 @@ func (c *ConsumerPost) Consume(delivery rmq.Delivery) {
 			c.logger.WithFields(fields).Errorf("error on queue for update feed for follower_id %d: %s", followerId, err)
 		} else {
 			c.logger.WithFields(fields).Infof("successfully queued for update feed for follower_id %d", followerId)
+		}
+		// Пытаемся отправить событие (не самое оптимальное место)
+		userInfo, err := c.storage.GetById(ctx, followerId)
+		if err == nil {
+			// User found
+			eventPost := model.EventPost{
+				Data: model.PostDTO{
+					UserFrom: userName,
+					Title:    task.Post.Title,
+					Message:  task.Post.Message,
+				},
+			}
+			err := c.publish(ctx, userInfo.UserId, userInfo.ShardId, &eventPost)
+			if err != nil {
+				c.logger.Errorf("error when publish post info: %s", err.Error())
+			}
 		}
 	}
 

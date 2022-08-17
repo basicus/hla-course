@@ -71,3 +71,10 @@ services:
       ports:
         - '6379:6379'
       command: redis-server --save 20 1 --loglevel warning --requirepass pass
+
+  rabbitmq:
+      image: 'rabbitmq:3.9-management-alpine'
+      restart: unless-stopped
+      ports:
+        - '5672:5672'
+        - '15672:15672'

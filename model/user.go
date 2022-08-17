@@ -4,19 +4,25 @@ import "errors"
 
 // User model
 type User struct {
-	UserId       int64  `json:"id" db:"user_id" fake:"skip"`
-	Login        string `json:"login" db:"login" fake:"{regex:[abcdefghijklmnopqrstuvwxyz0123456789]{10}}"`
-	Email        string `json:"email" db:"email" fake:"{email}"`
-	Phone        string `json:"phone" db:"phone" fake:"{phone}"`
-	Name         string `json:"name" db:"name" fake:"{firstname}"`
-	Surname      string `json:"surname" db:"surname" fake:"{lastname}"`
-	Age          int    `json:"age" db:"age" fake:"{number:1,100}"`
-	Sex          string `json:"sex" db:"sex" fake:"{randomstring:[male,female]}""`
-	Country      string `json:"country" db:"country" fake:"{country}"`
-	City         string `json:"city" db:"city" fake:"{city}"`
-	Interests    string `json:"interests" db:"interests" fake:"{sentence}"`
-	Password     string `json:"password,omitempty" db:"-" fake:"{password}"`
-	PasswordHash string `json:"-" db:"password" fake:"skip"`
+	UserId       int64        `json:"id" db:"user_id" fake:"skip"`
+	Login        string       `json:"login" db:"login" fake:"{regex:[abcdefghijklmnopqrstuvwxyz0123456789]{10}}"`
+	Email        string       `json:"email" db:"email" fake:"{email}"`
+	Phone        string       `json:"phone" db:"phone" fake:"{phone}"`
+	Name         string       `json:"name" db:"name" fake:"{firstname}"`
+	Surname      string       `json:"surname" db:"surname" fake:"{lastname}"`
+	Age          int          `json:"age" db:"age" fake:"{number:1,100}"`
+	Sex          string       `json:"sex" db:"sex" fake:"{randomstring:[male,female]}""`
+	Country      string       `json:"country" db:"country" fake:"{country}"`
+	City         string       `json:"city" db:"city" fake:"{city}"`
+	Interests    string       `json:"interests" db:"interests" fake:"{sentence}"`
+	Password     string       `json:"password,omitempty" db:"-" fake:"{password}"`
+	PasswordHash string       `json:"-" db:"password" fake:"skip"`
+	ShardId      string       `json:"-" db:"shard_id"`
+	Settings     UserSettings `json:"settings,omitempty" db:"-"`
+}
+
+type UserSettings struct {
+	WSConnect string `json:"ws_connect_uri"`
 }
 
 func (u *User) ValidateRegister() error {
