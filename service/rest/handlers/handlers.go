@@ -14,10 +14,11 @@ import (
 )
 
 type Handlers struct {
-	Logger  *logrus.Logger
-	Storage storage.UserService
-	Config  Config
-	Queue   *queue.Service
+	Logger      *logrus.Logger
+	Storage     storage.UserService
+	AuthService storage.UserService
+	Config      Config
+	Queue       *queue.Service
 }
 
 // Register Регистрация пользователя
@@ -66,13 +67,19 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 	}
 	login := input.Login
 	pass := input.Password
+	var validator storage.UserService
 
-	validated, err := h.Storage.ValidateUser(c.UserContext(), login, pass)
+	if h.AuthService != nil {
+		validator = h.AuthService
+	} else {
+		validator = h.Storage
+	}
+	validated, err := validator.ValidateUser(c.UserContext(), login, pass)
 	if err != nil || !validated {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"status": "error", "message": "Error on login", "data": "User not exist or invalid password"})
 	}
 
-	user, err := h.Storage.GetByLogin(c.UserContext(), login)
+	user, err := validator.GetByLogin(c.UserContext(), login)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"status": "error", "message": "Error on username", "data": err})
 	}
@@ -333,14 +340,14 @@ func (h *Handlers) ChatCreate(c *fiber.Ctx) error {
 	claims := user.Claims.(jwt.MapClaims)
 	userId := int64(claims["user_id"].(float64))
 
-	chatCreat := new(model.ChatCreateDTO)
-	if err := c.BodyParser(chatCreat); err != nil {
+	chatCreate := new(model.ChatCreateDTO)
+	if err := c.BodyParser(chatCreate); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Review your input", "data": err})
 
 	}
-	chatCreat.Users = append(chatCreat.Users, userId)
+	chatCreate.Users = append(chatCreate.Users, userId)
 
-	chat, err := h.Storage.ChatCreate(c.UserContext(), chatCreat.Title, chatCreat.Users...)
+	chat, err := h.Storage.ChatCreate(c.UserContext(), chatCreate.Title, chatCreate.Users...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat create problem", "data": err})
 	}

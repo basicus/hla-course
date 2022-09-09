@@ -17,7 +17,8 @@ require (
 	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
 	github.com/oklog/run v1.1.0
 	github.com/prometheus/client_golang v1.12.1
-	github.com/rabbitmq/amqp091-go v1.4.0 // indirect
+	github.com/rabbitmq/amqp091-go v1.4.0
 	github.com/sirupsen/logrus v1.8.1
+	github.com/tarantool/go-tarantool v1.8.0
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 )

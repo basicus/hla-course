@@ -1,0 +1,57 @@
+version: '3.5'
+
+services:
+
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    hostname: mysql
+    ports:
+      - '1441:3306'
+    restart: unless-stopped
+    command: [ "mysqld" ]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mysql/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+
+  redis:
+      image: redis:6.2-alpine
+      restart: unless-stopped
+      ports:
+        - '6379:6379'
+      command: redis-server --save 20 1 --loglevel warning --requirepass pass
+
+  rabbitmq:
+      image: 'rabbitmq:3.9-management-alpine'
+      restart: unless-stopped
+      ports:
+        - '5672:5672'
+        - '15672:15672'
+
+  tarantool:
+      image: 'tarantool/tarantool:1.10'
+      restart: unless-stopped
+      volumes:
+        - ./config/tarantool/up.lua:/opt/tarantool/up.lua
+      command: tarantool /opt/tarantool/up.lua
+      #environment:
+      #  TARANTOOL_USER_NAME: root
+      #  TARANTOOL_USER_PASSWORD: toor
+      ports:
+        - '3301:3301'
+  replicator:
+      image: 'tarantool-replicator:latest'
+      restart: unless-stopped
+      volumes:
+        - ./config/replicator/replicatord.yml:/usr/local/etc/replicatord.cfg
+      command: /replicatord -l /dev/stdout
+

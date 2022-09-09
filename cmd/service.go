@@ -10,7 +10,9 @@ import (
 	"github.com/basicus/hla-course/service/queue"
 	"github.com/basicus/hla-course/service/rest"
 	wspusher "github.com/basicus/hla-course/service/wsclients"
+	"github.com/basicus/hla-course/storage"
 	"github.com/basicus/hla-course/storage/mysql"
+	"github.com/basicus/hla-course/storage/tarantool"
 	"github.com/joeshaw/envdecode"
 	"github.com/oklog/run"
 	"github.com/sirupsen/logrus"
@@ -20,14 +22,16 @@ import (
 )
 
 type config struct {
-	Rest             rest.Config
-	Mon              monitoring.Config
-	Logger           log.Config
-	Db               mysql.Config
-	Queue            queue.Config
+	Rest   rest.Config
+	Mon    monitoring.Config
+	Logger log.Config
+	Db     mysql.Config
+	Queue  queue.Config
+	// TODO refactoring to dialog microservice
 	Ws               wspusher.Config
 	EvConsumerConfig eventconsumer.Config
 	EvProducerConfig eventproducer.Config
+	Auth             tarantool.Config
 }
 
 func main() {
@@ -57,6 +61,16 @@ func main() {
 	dbc, err := mysql.New(cfg.Db, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot access to database")
+	}
+
+	// Tarantool Storage
+	var tr *storage.UserService
+	if cfg.Auth.Enable {
+		ss, err := tarantool.New(cfg.Auth, logger)
+		tr = &ss
+		if err != nil {
+			logger.WithError(err).Fatal("Cannot access to database tarantool")
+		}
 	}
 
 	// Monitoring
@@ -110,7 +124,7 @@ func main() {
 	}
 
 	// REST Service
-	restService, err := rest.New(cfg.Rest, logger, mon, &dbc, queueSrv)
+	restService, err := rest.New(cfg.Rest, logger, mon, &dbc, queueSrv, tr)
 
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot create rest service")

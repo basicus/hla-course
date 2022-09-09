@@ -126,8 +126,8 @@ func (d *dbc) CheckPasswordHash(_ context.Context, password, hash string) bool {
 }
 
 func (d *dbc) Create(ctx context.Context, user model.User) (model.User, error) {
-	sql := "insert into users (login, email, phone, password, name, surname, age, sex, country, city, interests) " +
-		"values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+	sql := "insert into users (login, email, phone, password, name, surname, age, sex, country, city, interests, shard_id) " +
+		"values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
 	stmt, err := d.connection.Prepare(sql)
 	defer stmt.Close()
 	if err != nil {
@@ -136,7 +136,7 @@ func (d *dbc) Create(ctx context.Context, user model.User) (model.User, error) {
 	user.PasswordHash, _ = hashPassword(user.Password)
 	user.ShardId = "00000" // TODO add sharding users algorithm
 	result, err := stmt.ExecContext(ctx, user.Login, user.Email, user.Phone, user.PasswordHash, user.Name, user.Surname,
-		user.Age, user.Sex, user.Country, user.City, user.Interests)
+		user.Age, user.Sex, user.Country, user.City, user.Interests, user.ShardId)
 	if err != nil {
 		return model.User{}, err
 	}

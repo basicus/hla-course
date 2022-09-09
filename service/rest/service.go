@@ -21,9 +21,10 @@ type Service struct {
 	log     *logrus.Logger
 	app     *fiber.App
 	storage *storage.UserService
+	auth    *storage.UserService
 }
 
-func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.UserService, queue *queue.Service) (*Service, error) {
+func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.UserService, queue *queue.Service, auth *storage.UserService) (*Service, error) {
 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -36,10 +37,14 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	}
 
 	h := handlers.Handlers{
-		Logger:  log,
-		Storage: *storage,
-		Config:  handlers.Config{JwtSecret: config.JwtSecret, PostsLimit: config.PostsLimit},
-		Queue:   queue,
+		Logger:      log,
+		Storage:     *storage,
+		AuthService: nil,
+		Config:      handlers.Config{JwtSecret: config.JwtSecret, PostsLimit: config.PostsLimit},
+		Queue:       queue,
+	}
+	if auth != nil {
+		h.AuthService = *auth
 	}
 
 	app.Use(middleware.NewLogger(log))
