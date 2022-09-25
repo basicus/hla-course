@@ -8,7 +8,6 @@ import (
 )
 
 var (
-	ErrUserNotFound          = errors.New("user not found")
 	ErrInvalidUserOrPassword = errors.New("invalid password or user not found")
 )
 
@@ -43,6 +42,15 @@ type UserService interface {
 	GetPostsByUserId(ctx context.Context, userId int64, limit, offset int64) ([]model.Post, error)
 	// GetPostById Получить post по его Id
 	GetPostById(ctx context.Context, postId int64) (model.Post, error)
+	// GetUserName Получить имя пользователя
+	GetUserName(ctx context.Context, userId int64) (string, error)
+	// GetLogin Получить логин пользователя
+	GetLogin(ctx context.Context, userId int64) (string, error)
+}
+
+type ChatsService interface {
+	// GetChat Получить информацию о чате по id
+	GetChat(ctx context.Context, chatId int64) (model.Chat, error)
 	// UserGetChats Получить список чатов
 	UserGetChats(ctx context.Context, userId int64) ([]model.Chat, error)
 	// ChatCreate Создать новый чат
@@ -61,10 +69,4 @@ type UserService interface {
 	ChatMessages(ctx context.Context, chatId int64, limit, offset int64) ([]model.Message, error)
 	// MessageGet Получить сообщение по id
 	MessageGet(ctx context.Context, id int64) (model.Message, error)
-	// GetUserName Получить имя пользователя
-	GetUserName(ctx context.Context, userId int64) (string, error)
-	// GetLogin Получить логин пользователя
-	GetLogin(ctx context.Context, userId int64) (string, error)
-	// GetChat Получить информацию о чате по id
-	GetChat(ctx context.Context, chatId int64) (model.Chat, error)
 }

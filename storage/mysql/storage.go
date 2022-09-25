@@ -70,3 +70,41 @@ func New(cfg Config, logger *logrus.Logger) (storage.UserService, error) {
 		roEnable:     roEnable,
 	}, nil
 }
+
+func NewChats(cfg Config, logger *logrus.Logger) (storage.ChatsService, error) {
+
+	// Migrations
+	source := bindata.Resource(migrations.AssetNames(), migrations.Asset)
+	d, err := bindata.WithInstance(source)
+	if err != nil {
+		return nil, err
+	}
+	m, err := migrate.NewWithSourceInstance("go-bindata", d, "mysql://"+cfg.DSN)
+	if err != nil {
+		return nil, err
+	}
+	if err = m.Up(); err != nil {
+		if err != migrate.ErrNoChange {
+			return nil, err
+		}
+	}
+
+	conn, err := sqlx.Open("mysql", cfg.DSN+"?parseTime=true")
+	if err != nil {
+		return nil, err
+	}
+	err = conn.Ping()
+	conn.SetMaxOpenConns(cfg.MaxOpenConnections)
+	if err != nil {
+		return nil, err
+	}
+
+	var roEnable bool
+
+	logger.WithField("role", "storage-chats").Logger.Infof("Using readonly connection pooling: %t", roEnable)
+	return &dbc{
+		logger:     logger.WithField("role", "storage-chats").Logger,
+		connection: conn,
+		roEnable:   roEnable,
+	}, nil
+}

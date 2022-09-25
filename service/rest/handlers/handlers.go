@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"fmt"
+	chat_api "github.com/basicus/hla-course/grpc/chats"
 	"github.com/basicus/hla-course/model"
 	"github.com/basicus/hla-course/service/queue"
 	"github.com/basicus/hla-course/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +21,7 @@ type Handlers struct {
 	AuthService storage.UserService
 	Config      Config
 	Queue       *queue.Service
+	ChatApi     chat_api.ChatServiceClient
 }
 
 // Register Регистрация пользователя
@@ -323,23 +326,32 @@ func (h *Handlers) GetUserChats(c *fiber.Ctx) error {
 	user := c.Locals("user").(*jwt.Token)
 	claims := user.Claims.(jwt.MapClaims)
 	userId := int64(claims["user_id"].(float64))
-
-	chats, err := h.Storage.UserGetChats(c.UserContext(), userId)
+	requestId := c.Locals("requestid").(string)
+	userChatsResponse, err := h.ChatApi.ListChats(c.UserContext(), &chat_api.ListUserChatsRequest{UserId: userId, RequestId: requestId})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get user chats problem", "data": err})
 	}
-	if chats == nil {
-		chats = []model.Chat{}
+	var chats []model.Chat
+	for _, chat := range userChatsResponse.GetChats() {
+		chats = append(chats, convertChatInfo2Chat(chat))
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "get user chats ok", "data": chats})
+}
+func convertChatInfo2Chat(chat *chat_api.ChatInfo) model.Chat {
+	return model.Chat{
+		Id:        chat.GetChatId(),
+		Title:     chat.GetTitle(),
+		CreatedAt: chat.GetCreatedAt().AsTime(),
+		Closed:    chat.GetClosed(),
+	}
 }
 
 func (h *Handlers) ChatCreate(c *fiber.Ctx) error {
 	user := c.Locals("user").(*jwt.Token)
 	claims := user.Claims.(jwt.MapClaims)
 	userId := int64(claims["user_id"].(float64))
-
+	requestId := c.Locals("requestid").(string)
 	chatCreate := new(model.ChatCreateDTO)
 	if err := c.BodyParser(chatCreate); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Review your input", "data": err})
@@ -347,10 +359,17 @@ func (h *Handlers) ChatCreate(c *fiber.Ctx) error {
 	}
 	chatCreate.Users = append(chatCreate.Users, userId)
 
-	chat, err := h.Storage.ChatCreate(c.UserContext(), chatCreate.Title, chatCreate.Users...)
+	createChatResponse, err := h.ChatApi.CreateChat(c.UserContext(), &chat_api.CreateChatRequest{
+		UserId:    userId,
+		Title:     chatCreate.Title,
+		Users:     chatCreate.Users,
+		RequestId: requestId,
+	})
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat create problem", "data": err})
 	}
+	chat := convertChatInfo2Chat(createChatResponse.Chat)
 
 	// TODO Отправка в очередь уведомления о новом событии
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Chat create ok", "data": chat})
@@ -361,6 +380,7 @@ func (h *Handlers) ChatPostMessage(c *fiber.Ctx) error {
 	claims := user.Claims.(jwt.MapClaims)
 	userId := int64(claims["user_id"].(float64))
 	id := c.Params("id")
+	requestId := c.Locals("requestid").(string)
 
 	var err error
 
@@ -372,30 +392,35 @@ func (h *Handlers) ChatPostMessage(c *fiber.Ctx) error {
 	}
 
 	// If chat exists
-	_, err = h.Storage.GetChat(c.UserContext(), chatId)
+	_, err = h.ChatApi.Get(c.UserContext(), &chat_api.GetChatRequest{ChatId: chatId, RequestId: requestId})
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat not found", "data": err})
 	}
 
 	// Try to save message to chat
-	messageSaved, err := h.Storage.MessageSave(c.UserContext(), chatId, userId, time.Now(), message.Message)
+	messageSaved, err := h.ChatApi.PostMessage(c.UserContext(), &chat_api.PostMessageRequest{
+		UserId:    userId,
+		ChatId:    chatId,
+		Message:   message.Message,
+		Date:      timestamppb.Now(),
+		RequestId: requestId,
+	})
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Create chat problem", "data": err})
 	}
 
-	// Get username
-	userName, err := h.Storage.GetUserName(c.UserContext(), messageSaved.UserFrom)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get username problem", "data": err})
 	}
 
 	// TODO Отправка в очередь уведомления о новом событии
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Message send ok", "data": model.MessageDTO{
-		Id:       messageSaved.Id,
-		UserFrom: userName,
-		Date:     messageSaved.SendAt,
-		Message:  messageSaved.Message,
+		Id:       messageSaved.Message.MessageId,
+		UserFrom: messageSaved.Message.UserFrom,
+		Date:     messageSaved.Message.Date.AsTime(),
+		Message:  messageSaved.Message.Message,
 	}})
 }
 
@@ -404,13 +429,14 @@ func (h *Handlers) GetChatMessages(c *fiber.Ctx) error {
 	claims := user.Claims.(jwt.MapClaims)
 	userId := int64(claims["user_id"].(float64))
 	id := c.Params("id")
+	requestId := c.Locals("requestid").(string)
 
 	var err error
 
 	chatId, err := strconv.ParseInt(id, 10, 64)
 
 	// If chat exists
-	chat, err := h.Storage.GetChat(c.UserContext(), chatId)
+	chat, err := h.ChatApi.Get(c.UserContext(), &chat_api.GetChatRequest{ChatId: chatId})
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat not found", "data": err})
@@ -419,8 +445,8 @@ func (h *Handlers) GetChatMessages(c *fiber.Ctx) error {
 	// Check if user is participant
 
 	var userIsParticipant bool
-	paricipants, err := h.Storage.ChatGetParticipants(c.UserContext(), chatId)
-	for _, v := range paricipants {
+	participants := chat.GetUsers()
+	for _, v := range participants {
 		if v == userId {
 			userIsParticipant = true
 		}
@@ -431,33 +457,26 @@ func (h *Handlers) GetChatMessages(c *fiber.Ctx) error {
 	}
 
 	// Try get messages for chat
-	messageList, err := h.Storage.ChatMessages(c.UserContext(), chatId, 0, 0)
+	messageList, err := h.ChatApi.Messages(c.UserContext(), &chat_api.ChatMessagesRequest{
+		UserId:    userId,
+		ChatId:    chatId,
+		RequestId: requestId,
+	})
+
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Create chat problem", "data": err})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get messages of chat problem", "data": err})
 	}
 
 	m := model.MessageList{
-		Chat: chat,
-		List: make([]model.MessageDTO, len(messageList)),
+		Chat: convertChatInfo2Chat(chat.Chat),
+		List: make([]model.MessageDTO, len(messageList.GetMessages())),
 	}
-
-	// Get usernames and create dto for user
-	users := make(map[int64]string, 10)
-	for i := 0; i < len(messageList); i++ {
-		_, ok := users[messageList[i].UserFrom]
-		if !ok {
-			// Get username
-			userName, err := h.Storage.GetUserName(c.UserContext(), messageList[i].UserFrom)
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get username problem", "data": err})
-			}
-			users[messageList[i].UserFrom] = userName
-		}
+	for i := 0; i < len(messageList.GetMessages()); i++ {
 		m.List[i] = model.MessageDTO{
-			Id:       messageList[i].Id,
-			UserFrom: users[messageList[i].UserFrom],
-			Date:     messageList[i].SendAt,
-			Message:  messageList[i].Message,
+			Id:       messageList.Messages[i].MessageId,
+			UserFrom: messageList.Messages[i].UserFrom,
+			Date:     messageList.Messages[i].Date.AsTime(),
+			Message:  messageList.Messages[i].Message,
 		}
 	}
 

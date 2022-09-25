@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"errors"
+	chat_api "github.com/basicus/hla-course/grpc/chats"
 	"github.com/basicus/hla-course/log"
 	"github.com/basicus/hla-course/service/monitoring"
 	"github.com/basicus/hla-course/service/queue"
@@ -24,13 +25,13 @@ type Service struct {
 	auth    *storage.UserService
 }
 
-func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.UserService, queue *queue.Service, auth *storage.UserService) (*Service, error) {
+func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.UserService, queue *queue.Service, auth *storage.UserService, chatApi chat_api.ChatServiceClient) (*Service, error) {
 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
-	app.Use(recover.New())
 	app.Use(requestid.New())
+	app.Use(recover.New())
 	// use monitoring
 	if prom != nil && prom.Prom != nil {
 		app.Use(prom.Prom.Middleware)
@@ -42,6 +43,7 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 		AuthService: nil,
 		Config:      handlers.Config{JwtSecret: config.JwtSecret, PostsLimit: config.PostsLimit},
 		Queue:       queue,
+		ChatApi:     chatApi,
 	}
 	if auth != nil {
 		h.AuthService = *auth

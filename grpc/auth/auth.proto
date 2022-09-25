@@ -1,0 +1,41 @@
+syntax = "proto3";
+package auth_api;
+option go_package = "grpc/auth;auth_api";
+
+// protoc --proto_path=grpc/auth  --go_out=:.  --go-grpc_out=:. grpc/auth/auth.proto
+
+service AuthService {
+  rpc CheckSession (CheckSessionRequest) returns (CheckSessionResponse) {}
+  rpc UserName (UserNameRequest) returns (UserNameResponse) {}
+  rpc UserShard (UserShardRequest) returns (UserShardResponse) {}
+}
+
+message CheckSessionRequest {
+  string jwt_token = 1;
+}
+
+message CheckSessionResponse {
+  bool ok = 1;
+  int64 user_id = 2;
+  string jwt_token = 3;
+}
+
+message UserNameRequest {
+  int64 user_id = 1;
+}
+
+message UserNameResponse {
+  string UserName = 1;
+}
+
+message UserShardRequest {
+  int64 user_id = 1;
+}
+
+message UserShardResponse {
+  string ShardId = 1;
+}
+
+
+
+

@@ -4,11 +4,16 @@ import (
 	"context"
 	"github.com/basicus/hla-course/log"
 	"github.com/basicus/hla-course/service"
+	client_auth "github.com/basicus/hla-course/service/client-auth"
+	client_chats "github.com/basicus/hla-course/service/client-chats"
 	eventconsumer "github.com/basicus/hla-course/service/event-consumer"
 	eventproducer "github.com/basicus/hla-course/service/event-producer"
+	grpc_auth "github.com/basicus/hla-course/service/grpc-auth"
+	grpc_chats "github.com/basicus/hla-course/service/grpc-chats"
 	"github.com/basicus/hla-course/service/monitoring"
 	"github.com/basicus/hla-course/service/queue"
 	"github.com/basicus/hla-course/service/rest"
+	rest_chats "github.com/basicus/hla-course/service/rest-chats"
 	wspusher "github.com/basicus/hla-course/service/wsclients"
 	"github.com/basicus/hla-course/storage"
 	"github.com/basicus/hla-course/storage/mysql"
@@ -32,6 +37,11 @@ type config struct {
 	EvConsumerConfig eventconsumer.Config
 	EvProducerConfig eventproducer.Config
 	Auth             tarantool.Config
+	ClientAuth       client_auth.Config
+	ClientChats      client_chats.Config
+	GrpcAuth         grpc_auth.Config
+	GrpcChats        grpc_chats.Config
+	RestChats        rest_chats.Config
 }
 
 func main() {
@@ -59,6 +69,12 @@ func main() {
 
 	// Database storage
 	dbc, err := mysql.New(cfg.Db, logger)
+	if err != nil {
+		logger.WithError(err).Fatal("Cannot access to database")
+	}
+
+	// Database storage-chats
+	dbcChats, err := mysql.NewChats(cfg.Db, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot access to database")
 	}
@@ -93,6 +109,36 @@ func main() {
 		logger.WithError(err).Fatal("Failed run event producer service")
 	}
 
+	// GRPC auth server
+	grpcAuth, err := grpc_auth.New(cfg.GrpcAuth, &dbc, logger)
+	err = service.Setup(ctx, grpcAuth, "grpc auth server", g)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed run grpc auth server service")
+	}
+
+	// GRPC client for client auth
+	clientAuth := client_auth.New(cfg.ClientAuth)
+	clientAuth.Run(ctx)
+	/*err = service.Setup(ctx, clientAuth, "grpc auth client", g)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed run grpc auth client service")
+	}*/
+
+	// GRPC chats server
+	grpcChats, err := grpc_chats.New(cfg.GrpcChats, &dbcChats, clientAuth, logger)
+	err = service.Setup(ctx, grpcChats, "grpc chats server", g)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed run grpc chats server service")
+	}
+
+	// GRPC client for chats
+	clientChats := client_chats.New(cfg.ClientChats)
+	clientChats.Run(ctx)
+	/*	err = service.Setup(ctx, clientChats, "grpc chats client", g)
+		if err != nil {
+			logger.WithError(err).Fatal("Failed run grpc chats client service")
+		}*/
+
 	// Queue service
 	queueSrv, err := queue.New(cfg.Queue, &dbc, logger, evProducer.PublishEvent)
 	if err != nil {
@@ -123,8 +169,8 @@ func main() {
 		logger.WithError(err).Fatal("Failed run event consumer service")
 	}
 
-	// REST Service
-	restService, err := rest.New(cfg.Rest, logger, mon, &dbc, queueSrv, tr)
+	// REST Service main
+	restService, err := rest.New(cfg.Rest, logger, mon, &dbc, queueSrv, tr, clientChats.Client)
 
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot create rest service")
@@ -133,6 +179,18 @@ func main() {
 	err = service.Setup(ctx, restService, "rest", g)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed run rest service")
+	}
+
+	// REST Service chats
+	restServiceChats, err := rest_chats.New(cfg.RestChats, logger, mon, &dbcChats, clientAuth.Client)
+
+	if err != nil {
+		logger.WithError(err).Fatal("Cannot create rest chat service")
+	}
+
+	err = service.Setup(ctx, restServiceChats, "rest-chats", g)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed run rest chats service")
 	}
 
 	logger.Info("Running the service...")

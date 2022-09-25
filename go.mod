@@ -13,6 +13,7 @@ require (
 	github.com/gofiber/websocket/v2 v2.0.24
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/golang-migrate/migrate/v4 v4.15.2
+	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
 	github.com/oklog/run v1.1.0
@@ -21,4 +22,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/tarantool/go-tarantool v1.8.0
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
+	google.golang.org/grpc v1.45.0
+	google.golang.org/protobuf v1.27.1
 )

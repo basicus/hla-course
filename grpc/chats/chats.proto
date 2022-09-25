@@ -1,0 +1,85 @@
+syntax = "proto3";
+package chat_api;
+option go_package = "grpc/chats;chat_api";
+import "google/protobuf/timestamp.proto";
+
+
+// protoc --proto_path=grpc/chats  --go_out=:.  --go-grpc_out=:. grpc/chats/chats.proto
+
+service ChatService {
+  rpc ListChats (ListUserChatsRequest) returns (ListUserChatsResponse) {}
+  rpc Messages (ChatMessagesRequest) returns (ChatMessagesResponse)   {}
+  rpc CreateChat (CreateChatRequest) returns (CreateChatResponse) {}
+  rpc PostMessage (PostMessageRequest) returns (PostMessageResponse) {}
+  rpc Get (GetChatRequest) returns (GetChatResponse) {}
+}
+
+
+message ListUserChatsRequest {
+  int64 user_id = 1;
+  string request_id = 2;
+}
+
+message ListUserChatsResponse {
+  repeated ChatInfo chats = 1;
+}
+
+message ChatInfo {
+  int64 chat_id = 1;
+  string title = 2;
+  google.protobuf.Timestamp created_at = 3;
+  bool  closed = 4;
+  string request_id = 5;
+}
+
+
+message ChatMessage {
+  int64 message_id = 1;
+  string user_from = 2;
+  google.protobuf.Timestamp date = 3;
+  string message = 4;
+}
+
+message ChatMessagesRequest {
+  int64 user_id = 1;
+  int64 chat_id = 2;
+  string request_id = 3;
+}
+
+message ChatMessagesResponse {
+  ChatInfo chat = 1;
+  repeated ChatMessage messages = 2;
+}
+
+message CreateChatRequest {
+  int64 user_id = 1;
+  string title = 2;
+  repeated int64 users = 3;
+  string request_id = 4;
+}
+
+message CreateChatResponse {
+  ChatInfo chat = 1;
+}
+
+message PostMessageRequest {
+  int64 user_id = 1;
+  int64 chat_id = 2;
+  string message = 3;
+  google.protobuf.Timestamp date = 4;
+  string request_id = 5;
+}
+
+message PostMessageResponse {
+  ChatMessage message = 1;
+}
+
+message GetChatRequest {
+  int64 chat_id = 1;
+  string request_id = 2;
+}
+
+message GetChatResponse {
+  ChatInfo chat = 1;
+  repeated int64 users = 2;
+}
