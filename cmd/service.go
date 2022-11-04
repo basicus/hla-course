@@ -25,12 +25,11 @@ import (
 )
 
 type config struct {
-	Rest   rest.Config
-	Mon    monitoring.Config
-	Logger log.Config
-	Db     mysql.Config
-	Queue  queue.Config
-	// TODO refactoring to dialog microservice
+	Rest             rest.Config
+	Mon              monitoring.Config
+	Logger           log.Config
+	Db               mysql.Config
+	Queue            queue.Config
 	Ws               wspusher.Config
 	EvConsumerConfig eventconsumer.Config
 	EvProducerConfig eventproducer.Config

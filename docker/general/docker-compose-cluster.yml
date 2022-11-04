@@ -1,0 +1,38 @@
+version: '3.5'
+
+services:
+
+  mariadb1:
+    image: mariadb:10.8.3
+    container_name: mariadb1
+    hostname: mariadb1
+    ports:
+      - '3306:3306'
+    restart: unless-stopped
+    command: [ "mysqld" ]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb1/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+  redis:
+      image: redis:6.2-alpine
+      restart: unless-stopped
+      ports:
+        - '6379:6379'
+      command: redis-server --save 20 1 --loglevel warning --requirepass pass
+
+  rabbitmq:
+      image: 'rabbitmq:3.9-management-alpine'
+      restart: unless-stopped
+      ports:
+        - '5672:5672'
+        - '15672:15672'
