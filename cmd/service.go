@@ -15,9 +15,7 @@ import (
 	"github.com/basicus/hla-course/service/rest"
 	rest_chats "github.com/basicus/hla-course/service/rest-chats"
 	wspusher "github.com/basicus/hla-course/service/wsclients"
-	"github.com/basicus/hla-course/storage"
 	"github.com/basicus/hla-course/storage/mysql"
-	"github.com/basicus/hla-course/storage/tarantool"
 	"github.com/joeshaw/envdecode"
 	"github.com/oklog/run"
 	"github.com/sirupsen/logrus"
@@ -36,7 +34,6 @@ type config struct {
 	Ws               wspusher.Config
 	EvConsumerConfig eventconsumer.Config
 	EvProducerConfig eventproducer.Config
-	Auth             tarantool.Config
 	ClientAuth       client_auth.Config
 	ClientChats      client_chats.Config
 	GrpcAuth         grpc_auth.Config
@@ -77,16 +74,6 @@ func main() {
 	dbcChats, err := mysql.NewChats(cfg.Db, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot access to database")
-	}
-
-	// Tarantool Storage
-	var tr *storage.UserService
-	if cfg.Auth.Enable {
-		ss, err := tarantool.New(cfg.Auth, logger)
-		tr = &ss
-		if err != nil {
-			logger.WithError(err).Fatal("Cannot access to database tarantool")
-		}
 	}
 
 	// Monitoring
@@ -170,7 +157,7 @@ func main() {
 	}
 
 	// REST Service main
-	restService, err := rest.New(cfg.Rest, logger, mon, &dbc, queueSrv, tr, clientChats.Client)
+	restService, err := rest.New(cfg.Rest, logger, mon, &dbc, queueSrv, nil, clientChats.Client)
 
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot create rest service")

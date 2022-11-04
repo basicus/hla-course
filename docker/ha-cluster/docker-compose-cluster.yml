@@ -1,0 +1,156 @@
+version: '3.5'
+
+services:
+
+  mariadb1:
+    image: mariadb:10.8.3
+    container_name: mariadb1
+    hostname: mariadb1
+    ports:
+      - '1441:3306'
+    restart: unless-stopped
+    command: [ "mysqld" ]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb1/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+  mariadb2:
+    image: mariadb:10.8.3
+    container_name: mariadb2
+    hostname: mariadb2
+    ports:
+      - '1442:3306'
+    restart: unless-stopped
+    command: [ "mysqld" ]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb2/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+  mariadb3:
+    image: mariadb:10.8.3
+    container_name: mariadb3
+    hostname: mariadb3
+    ports:
+      - '1443:3306'
+    restart: unless-stopped
+    command: [ "mysqld"]
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: project
+    volumes:
+      - ./config/mariadb3/my.cnf:/etc/mysql/my.cnf
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"
+      interval: 2s
+      retries: 20
+
+  redis:
+      image: redis:6.2-alpine
+      hostname: redis
+      restart: unless-stopped
+      ports:
+        - '6379:6379'
+      command: redis-server --save 20 1 --loglevel warning --requirepass pass
+
+  rabbitmq:
+      image: 'rabbitmq:3.9-management-alpine'
+      restart: unless-stopped
+      hostname: rabbitmq
+      ports:
+        - '5672:5672'
+        - '15672:15672'
+  haproxy:
+    image: haproxy:lts-alpine3.16
+    container_name: haproxy
+    hostname: haproxy
+    restart: unless-stopped
+    ports:
+      - "2999:2999"
+    volumes:
+      - ./config/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8082:8082"
+      - "8080:8080"
+      - "8084:8084"
+
+  service-sn1:
+    image: service-sn:latest
+    container_name: service1
+    environment:
+      LISTEN_ADDRESS: ":8080"
+      JWT_SECRET: "superpuper"
+      FRIENDS_POSTS_LIMIT: 1000
+      PROMETHEUS_LISTEN: ":8082"
+      DB_DSN: "root:pass@tcp(mariadb1:3306)/project"
+      DB_DSN_RO: "root:pass@tcp(haproxy:3306)/project"
+      DB_RO_DISABLE: "false"
+      REDIS_ADDRESS: "redis:6379"
+      WS_LISTEN_ADDRESS: ":8081"
+      RABBITMQ_CONNECTION : "amqp://guest:guest@rabbitmq:5672/"
+      GRPC_CLIENT_AUTH: "localhost:9093"
+      GRPC_CLIENT_CHATS: "localhost:9092"
+      GRPC_AUTH_LISTEN: ":9093"
+      GRPC_CHATS_LISTEN": ":9092"
+      CHATS_LISTEN_ADDRESS: ":8084"
+    restart: on-failure
+    depends_on:
+      - mariadb1
+      - mariadb2
+      - mariadb3
+      - haproxy
+      - rabbitmq
+      - redis
+  service-sn2:
+      image: service-sn:latest
+      container_name: service2
+      environment:
+        LISTEN_ADDRESS: ":8080"
+        JWT_SECRET: "superpuper"
+        FRIENDS_POSTS_LIMIT: 1000
+        PROMETHEUS_LISTEN: ":8082"
+        DB_DSN: "root:pass@tcp(mariadb1:3306)/project"
+        DB_DSN_RO: "root:pass@tcp(haproxy:3306)/project"
+        DB_RO_DISABLE: "false"
+        REDIS_ADDRESS: "redis:6379"
+        WS_LISTEN_ADDRESS: ":8081"
+        RABBITMQ_CONNECTION: "amqp://guest:guest@rabbitmq:5672/"
+        GRPC_CLIENT_AUTH: "localhost:9093"
+        GRPC_CLIENT_CHATS: "localhost:9092"
+        GRPC_AUTH_LISTEN: ":9093"
+        GRPC_CHATS_LISTEN": ":9092"
+        CHATS_LISTEN_ADDRESS: ":8084"
+      restart: on-failure
+      depends_on:
+        - mariadb1
+        - mariadb2
+        - mariadb3
+        - haproxy
+        - rabbitmq
+        - redis
+

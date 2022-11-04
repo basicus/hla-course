@@ -8,6 +8,6 @@ RUN go install ./...
 FROM alpine:3.14.6
 COPY --from=build /go/bin/cmd /srv/cmd
 
-EXPOSE 8080 8082
+EXPOSE 8080 8082 8084
 
 ENTRYPOINT ["/srv/cmd"]
