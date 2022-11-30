@@ -61,7 +61,7 @@ func (s *Service) ChatPostMessage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Chat not found", "data": err})
 	}
 
-	// Try to save message to chat
+	/*// Try to save message to chat
 	messageSaved, err := s.storage.MessageSave(c.UserContext(), chatId, userId, time.Now(), message.Message)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Create chat problem", "data": err})
@@ -71,13 +71,27 @@ func (s *Service) ChatPostMessage(c *fiber.Ctx) error {
 	userName, err := s.authApi.UserName(c.UserContext(), &auth_api.UserNameRequest{UserId: messageSaved.UserFrom})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Get username problem", "data": err})
-	}
+	}*/
 
+	sagaResult, err := s.newMessageCounterSaga(c.UserContext(), sagaNewMessageData{
+		savedMessage: nil,
+		chatId:       chatId,
+		userFromId:   userId,
+		date:         time.Now(),
+		message:      message.Message,
+		userName:     nil,
+	})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Send message problem", "data": err})
+	}
+	if sagaResult == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "Send message problem", "data": nil})
+	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Message send ok", "data": model.MessageDTO{
-		Id:       messageSaved.Id,
-		UserFrom: userName.UserName,
-		Date:     messageSaved.SendAt,
-		Message:  messageSaved.Message,
+		Id:       sagaResult.savedMessage.Id,
+		UserFrom: *sagaResult.userName,
+		Date:     sagaResult.savedMessage.SendAt,
+		Message:  sagaResult.savedMessage.Message,
 	}})
 }
 

@@ -6,10 +6,12 @@ import (
 	"github.com/basicus/hla-course/service"
 	client_auth "github.com/basicus/hla-course/service/client-auth"
 	client_chats "github.com/basicus/hla-course/service/client-chats"
+	client_counter "github.com/basicus/hla-course/service/client-counter"
 	eventconsumer "github.com/basicus/hla-course/service/event-consumer"
 	eventproducer "github.com/basicus/hla-course/service/event-producer"
 	grpc_auth "github.com/basicus/hla-course/service/grpc-auth"
 	grpc_chats "github.com/basicus/hla-course/service/grpc-chats"
+	grpc_counter "github.com/basicus/hla-course/service/grpc-counter"
 	"github.com/basicus/hla-course/service/monitoring"
 	"github.com/basicus/hla-course/service/queue"
 	"github.com/basicus/hla-course/service/rest"
@@ -35,9 +37,11 @@ type config struct {
 	EvProducerConfig eventproducer.Config
 	ClientAuth       client_auth.Config
 	ClientChats      client_chats.Config
+	ClientCounter    client_counter.Config
 	GrpcAuth         grpc_auth.Config
 	GrpcChats        grpc_chats.Config
 	RestChats        rest_chats.Config
+	GrpcCounter      grpc_counter.Config
 }
 
 func main() {
@@ -96,6 +100,13 @@ func main() {
 	}
 
 	// GRPC auth server
+	grpcCounter, err := grpc_counter.New(cfg.GrpcCounter, logger)
+	err = service.Setup(ctx, grpcCounter, "grpc counter server", g)
+	if err != nil {
+		logger.WithError(err).Fatal("Failed run grpc counter server service")
+	}
+
+	// GRPC auth server
 	grpcAuth, err := grpc_auth.New(cfg.GrpcAuth, &dbc, logger)
 	err = service.Setup(ctx, grpcAuth, "grpc auth server", g)
 	if err != nil {
@@ -109,6 +120,10 @@ func main() {
 	if err != nil {
 		logger.WithError(err).Fatal("Failed run grpc auth client service")
 	}*/
+
+	// GRPC client for counter auth
+	clientCounter := client_counter.New(cfg.ClientCounter)
+	clientCounter.Run(ctx)
 
 	// GRPC chats server
 	grpcChats, err := grpc_chats.New(cfg.GrpcChats, &dbcChats, clientAuth, logger)
@@ -168,7 +183,7 @@ func main() {
 	}
 
 	// REST Service chats
-	restServiceChats, err := rest_chats.New(cfg.RestChats, logger, mon, &dbcChats, clientAuth.Client)
+	restServiceChats, err := rest_chats.New(cfg.RestChats, logger, mon, &dbcChats, clientAuth.Client, clientCounter.Client)
 
 	if err != nil {
 		logger.WithError(err).Fatal("Cannot create rest chat service")

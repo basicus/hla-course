@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	auth_api "github.com/basicus/hla-course/grpc/auth"
+	counter_api "github.com/basicus/hla-course/grpc/counter"
 	"github.com/basicus/hla-course/log"
 	"github.com/basicus/hla-course/service/monitoring"
 	"github.com/basicus/hla-course/service/rest/middleware"
@@ -11,19 +12,22 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/itimofeev/go-saga"
 	"github.com/sirupsen/logrus"
 	"net/http"
 )
 
 type Service struct {
-	config  Config
-	log     *logrus.Logger
-	app     *fiber.App
-	storage storage.ChatsService
-	authApi auth_api.AuthServiceClient
+	config     Config
+	log        *logrus.Logger
+	app        *fiber.App
+	storage    storage.ChatsService
+	authApi    auth_api.AuthServiceClient
+	counterApi counter_api.CounterServiceClient
+	ss         saga.Store
 }
 
-func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.ChatsService, authApi auth_api.AuthServiceClient) (*Service, error) {
+func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *storage.ChatsService, authApi auth_api.AuthServiceClient, counter counter_api.CounterServiceClient) (*Service, error) {
 
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -36,11 +40,13 @@ func New(config Config, log *logrus.Logger, prom *monitoring.Service, storage *s
 	}
 
 	s := &Service{
-		config:  config,
-		log:     log,
-		app:     app,
-		storage: *storage,
-		authApi: authApi,
+		config:     config,
+		log:        log,
+		app:        app,
+		storage:    *storage,
+		authApi:    authApi,
+		counterApi: counter,
+		ss:         saga.New(),
 	}
 	// Функционал чатов (диалогов)
 	app.Use(requestid.New())
